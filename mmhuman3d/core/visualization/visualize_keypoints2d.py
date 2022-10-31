@@ -157,7 +157,7 @@ def _plot_kp2d_frame(kp2d_person: np.ndarray,
                     cv2.putText(
                         canvas, str(index), (int(x), int(y)),
                         cv2.FONT_HERSHEY_SIMPLEX, font_size,
-                        np.array([255, 255, 255]).astype(np.int32).tolist(), 1)
+                        np.array([0, 0, 0]).astype(np.int32).tolist(), 1)
     # draw the bboxes
     if bbox is not None:
         bbox = bbox.astype(np.int32)

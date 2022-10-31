@@ -169,6 +169,7 @@ class LimbLengthLoss(nn.Module):
         self.eps = eps
         limb_idxs, _ = search_limbs(data_source=convention)
         limb_idxs = sorted(limb_idxs['body'])
+        # limb_idxs = sorted(limb_idxs['body'] + limb_idxs['left_hand'] + limb_idxs['right_hand'])
         self.limb_idxs = np.array(
             list(x for x, _ in itertools.groupby(limb_idxs)))
 

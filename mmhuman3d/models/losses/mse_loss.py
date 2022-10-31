@@ -171,5 +171,13 @@ class KeypointMSELoss(nn.Module):
             reduction=reduction,
             avg_factor=avg_factor,
             sigma=self.sigma)
+        
+        # loss = loss_weight * mse_loss(
+        #     pred,
+        #     target,
+        #     weight,
+        #     reduction=reduction,
+        #     avg_factor=avg_factor,
+        #    )
 
         return loss

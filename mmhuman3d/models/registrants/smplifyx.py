@@ -6,6 +6,8 @@ from mmhuman3d.core.conventions.keypoints_mapping import (
     get_keypoint_idxs_by_part,
 )
 from .smplify import OptimizableParameters, SMPLify
+import os
+from human_body_prior.tools.model_loader import load_vposer
 
 
 class SMPLifyX(SMPLify):
@@ -14,6 +16,21 @@ class SMPLifyX(SMPLify):
     - video input
     - 3D keypoints
     """
+    def __init__(self,
+                 use_vposer: bool=False,
+                 **kwargs):
+        super(SMPLifyX, self).__init__(**kwargs)
+        self.vposer = None
+        if use_vposer:
+            vposer_ckpt = os.path.expandvars('/home/chenkanghao/workspace/hand_estimation/models/vposer_v1_0')
+            vposer, _ = load_vposer(vposer_ckpt, vp_model='snapshot')
+            vposer = vposer.to(self.device)
+            vposer.eval()
+            self.vposer = vposer
+        use_pca = kwargs.get('body_model')['use_pca']
+        self.use_pca = use_pca
+        # import pdb; pdb.set_trace()
+
 
     def __call__(self,
                  keypoints2d: torch.Tensor = None,
@@ -81,9 +98,14 @@ class SMPLifyX(SMPLify):
         transl = self._match_init_batch_size(init_transl,
                                              self.body_model.transl,
                                              batch_size)
-        body_pose = self._match_init_batch_size(init_body_pose,
-                                                self.body_model.body_pose,
-                                                batch_size)
+        if self.vposer:
+            body_pose = torch.zeros([batch_size, 32],
+                                     dtype=torch.float32, device=self.device,
+                                     requires_grad=True)
+        else:
+            body_pose = self._match_init_batch_size(init_body_pose,
+                                                    self.body_model.body_pose,
+                                                    batch_size)
         left_hand_pose = self._match_init_batch_size(
             init_left_hand_pose, self.body_model.left_hand_pose, batch_size)
         right_hand_pose = self._match_init_batch_size(
@@ -128,6 +150,14 @@ class SMPLifyX(SMPLify):
                     keypoints3d_conf=keypoints3d_conf,
                     **stage_config,
                 )
+
+        if self.vposer is not None:
+            body_pose = self.vposer.decode(body_pose, output_type='aa').view(-1, 63)
+        if self.use_pca:
+            left_hand_pose = torch.einsum(
+                'bi,ij->bj', [left_hand_pose, self.body_model.left_hand_components])
+            right_hand_pose = torch.einsum(
+                'bi,ij->bj', [right_hand_pose, self.body_model.right_hand_components])
 
         return {
             'global_orient': global_orient,
@@ -359,7 +389,9 @@ class SMPLifyX(SMPLify):
         """
 
         ret = {}
-
+        if self.vposer is not None:
+            body_pose = self.vposer.decode(body_pose, output_type='aa').view(-1, 63)
+        # import pdb; pdb.set_trace()
         body_model_output = self.body_model(
             global_orient=global_orient,
             body_pose=body_pose,
