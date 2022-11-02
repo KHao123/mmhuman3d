@@ -11,7 +11,7 @@ from mmhuman3d.core.conventions.keypoints_mapping import (
 )
 from ..body_models.builder import build_body_model
 from ..losses.builder import build_loss
-
+import time
 
 class OptimizableParameters():
     """Collects parameters for optimization."""
@@ -540,9 +540,7 @@ class SMPLify(object):
             losses: a dict that contains all losses
         """
         losses = {}
-
         weight = self._get_weight(**joint_weights)
-
         # 2D keypoint loss
         if keypoints2d is not None and not self._skip_loss(
                 self.keypoints2d_mse_loss, keypoints2d_weight):
@@ -553,14 +551,15 @@ class SMPLify(object):
             #     torch.zeros((bs, 3)).to(model_joints.device), 5000.0,
             #     torch.Tensor([self.img_res / 2,
             #                   self.img_res / 2]).to(model_joints.device))
+            t0 = time.time()
             projected_joints_xyd = self.camera.transform_points_screen(
                 model_joints)
             projected_joints = projected_joints_xyd[..., :2]
-
+            t1 = time.time()
+            print('####project time:', t1 - t0)
             # normalize keypoints to [-1,1]
             projected_joints = 2 * projected_joints / (self.img_res - 1) - 1
             keypoints2d = 2 * keypoints2d / (self.img_res - 1) - 1
-
             keypoint2d_loss = self.keypoints2d_mse_loss(
                 pred=projected_joints,
                 pred_conf=model_joint_conf,
@@ -570,7 +569,6 @@ class SMPLify(object):
                 loss_weight_override=keypoints2d_weight,
                 reduction_override=reduction_override)
             losses['keypoint2d_loss'] = keypoint2d_loss
-
         # 3D keypoint loss
         if keypoints3d is not None and not self._skip_loss(
                 self.keypoints3d_mse_loss, keypoints3d_weight):
@@ -651,7 +649,6 @@ class SMPLify(object):
             else:
                 total_loss = total_loss + loss
         losses['total_loss'] = total_loss
-
         return losses
 
     def _match_init_batch_size(self, init_param: torch.Tensor,

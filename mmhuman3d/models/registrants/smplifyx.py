@@ -8,6 +8,7 @@ from mmhuman3d.core.conventions.keypoints_mapping import (
 from .smplify import OptimizableParameters, SMPLify
 import os
 from human_body_prior.tools.model_loader import load_vposer
+import time
 
 
 class SMPLifyX(SMPLify):
@@ -129,7 +130,6 @@ class SMPLifyX(SMPLify):
             betas = self._match_init_batch_size(init_betas,
                                                 self.body_model.betas,
                                                 batch_size)
-
         for i in range(self.num_epochs):
             for stage_idx, stage_config in enumerate(self.stage_config):
                 # print(stage_name)
@@ -250,7 +250,6 @@ class SMPLifyX(SMPLify):
         Returns:
             None
         """
-
         parameters = OptimizableParameters()
         parameters.set_param(fit_global_orient, global_orient)
         parameters.set_param(fit_transl, transl)
@@ -274,7 +273,6 @@ class SMPLifyX(SMPLify):
 
                 optimizer.zero_grad()
                 betas_video = self._expand_betas(body_pose.shape[0], betas)
-
                 loss_dict = self.evaluate(
                     global_orient=global_orient,
                     body_pose=body_pose,
@@ -303,8 +301,10 @@ class SMPLifyX(SMPLify):
                 loss = loss_dict['total_loss']
                 loss.backward()
                 return loss
-
+            t0 = time.time()
             loss = optimizer.step(closure)
+            t1 = time.time()
+            print('## iter loss time:', t1 - t0)
             if iter_idx > 0 and pre_loss is not None and ftol > 0:
                 loss_rel_change = self._compute_relative_change(
                     pre_loss, loss.item())
@@ -392,6 +392,7 @@ class SMPLifyX(SMPLify):
         if self.vposer is not None:
             body_pose = self.vposer.decode(body_pose, output_type='aa').view(-1, 63)
         # import pdb; pdb.set_trace()
+        t0 = time.time()
         body_model_output = self.body_model(
             global_orient=global_orient,
             body_pose=body_pose,
@@ -405,10 +406,11 @@ class SMPLifyX(SMPLify):
             reye_pose=reye_pose,
             return_verts=return_verts,
             return_full_pose=return_full_pose)
+        t1 = time.time()
+        print('###body model time:', t1 - t0)
 
         model_joints = body_model_output['joints']
         model_joint_mask = body_model_output['joint_mask']
-
         loss_dict = self._compute_loss(
             model_joints,
             model_joint_mask,
