@@ -556,7 +556,7 @@ class SMPLify(object):
                 model_joints)
             projected_joints = projected_joints_xyd[..., :2]
             t1 = time.time()
-            print('####project time:', t1 - t0)
+            print('####project time:', t1 - t0) # 4 ms
             # normalize keypoints to [-1,1]
             projected_joints = 2 * projected_joints / (self.img_res - 1) - 1
             keypoints2d = 2 * keypoints2d / (self.img_res - 1) - 1

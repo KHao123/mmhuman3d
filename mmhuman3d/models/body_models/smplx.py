@@ -11,7 +11,7 @@ from mmhuman3d.core.conventions.keypoints_mapping import (
     get_keypoint_num,
 )
 from mmhuman3d.core.conventions.segmentation import body_segmentation
-
+import time
 
 class SMPLX(_SMPLX):
     """Extension of the official SMPL-X implementation."""
@@ -95,7 +95,10 @@ class SMPLX(_SMPLX):
         """
 
         kwargs['get_skin'] = True
+        t0 = time.time()
         smplx_output = super(SMPLX, self).forward(*args, **kwargs)
+        t1 = time.time()
+        print('#####smplx forward:', t1 - t0) # 9 ms
 
         if not hasattr(self, 'joints_regressor'):
             joints = smplx_output.joints

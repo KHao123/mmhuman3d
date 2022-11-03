@@ -30,6 +30,7 @@ from mmhuman3d.core.conventions.keypoints_mapping import (
     spin_smplx,
     star,
     mediapip,
+    smplx_wo_contour,
 )
 
 KEYPOINTS_FACTORY = {
@@ -76,6 +77,7 @@ KEYPOINTS_FACTORY = {
     'mediapipe_whole_body': mediapip.WHOLE_BODY_KEYPOINTS,
     'mediapipe_body': mediapip.BODY_KEYPOINTS,
     'mediapipe_mirror_body': mediapip.BODY_MIRROR_KEYPOINTS,
+    'smplx_wo_contour': smplx_wo_contour.SMPLX_KEYPOINTS,
 }
 
 __KEYPOINTS_MAPPING_CACHE__ = defaultdict(dict)

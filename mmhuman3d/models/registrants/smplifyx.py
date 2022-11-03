@@ -29,7 +29,7 @@ class SMPLifyX(SMPLify):
             vposer.eval()
             self.vposer = vposer
         use_pca = kwargs.get('body_model')['use_pca']
-        self.use_pca = use_pca
+        self.use_pca = use_pca  
         # import pdb; pdb.set_trace()
 
 
@@ -270,7 +270,7 @@ class SMPLifyX(SMPLify):
             def closure():
                 # body_pose_fixed = use_reference_spine(body_pose,
                 # init_body_pose)
-
+                t0 = time.time()
                 optimizer.zero_grad()
                 betas_video = self._expand_betas(body_pose.shape[0], betas)
                 loss_dict = self.evaluate(
@@ -297,14 +297,18 @@ class SMPLifyX(SMPLify):
                     pose_reg_weight=pose_reg_weight,
                     limb_length_weight=limb_length_weight,
                     joint_weights=joint_weights)
-
+                t1 = time.time()
+                print('### forward time', t1 - t0) # 15 ms
+                # t0 = time.time()
                 loss = loss_dict['total_loss']
                 loss.backward()
+                # t1 = time.time()
+                # print('### backward time', t1 - t0) # 15 ms
                 return loss
             t0 = time.time()
             loss = optimizer.step(closure)
             t1 = time.time()
-            print('## iter loss time:', t1 - t0)
+            print('## iter loss time:', t1 - t0) # 30 ms
             if iter_idx > 0 and pre_loss is not None and ftol > 0:
                 loss_rel_change = self._compute_relative_change(
                     pre_loss, loss.item())
@@ -407,7 +411,7 @@ class SMPLifyX(SMPLify):
             return_verts=return_verts,
             return_full_pose=return_full_pose)
         t1 = time.time()
-        print('###body model time:', t1 - t0)
+        print('####body model time:', t1 - t0) # 10 ms
 
         model_joints = body_model_output['joints']
         model_joint_mask = body_model_output['joint_mask']
