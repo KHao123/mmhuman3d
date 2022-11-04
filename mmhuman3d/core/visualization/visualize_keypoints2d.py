@@ -573,7 +573,7 @@ def visualize_kp2d(
                 palette=limbs_palette,
                 draw_bbox=draw_bbox,
                 with_number=with_number,
-                font_size=0.2,
+                font_size=0.5,
                 disable_limbs=disable_limbs)
         if with_file_name and frame_list is not None:
             h, w, _ = canvas.shape
