@@ -279,7 +279,7 @@ class SMPLifyX(SMPLify):
                 loss_rel_change = self._compute_relative_change(
                     pre_loss, loss.item())
                 if loss_rel_change < ftol:
-                    print(f'[ftol={ftol}] Early stop at {iter_idx} iter!')
+                    # print(f'[ftol={ftol}] Early stop at {iter_idx} iter!')
                     break
             pre_loss = loss.item()
 
