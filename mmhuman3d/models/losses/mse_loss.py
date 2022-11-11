@@ -172,6 +172,7 @@ class KeypointMSELoss(nn.Module):
         #     avg_factor=avg_factor,
         #     sigma=self.sigma)
 
+        # remove gmof function
         loss = loss_weight * mse_loss(
             pred,
             target,

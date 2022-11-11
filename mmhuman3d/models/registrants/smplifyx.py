@@ -30,6 +30,7 @@ class SMPLifyX(SMPLify):
                  init_jaw_pose: torch.Tensor = None,
                  init_leye_pose: torch.Tensor = None,
                  init_reye_pose: torch.Tensor = None,
+                 anchor_pose: torch.Tensor = None,
                  return_verts: bool = False,
                  return_joints: bool = False,
                  return_full_pose: bool = False,
@@ -126,6 +127,7 @@ class SMPLifyX(SMPLify):
                     keypoints2d_conf=keypoints2d_conf,
                     keypoints3d=keypoints3d,
                     keypoints3d_conf=keypoints3d_conf,
+                    anchor_pose=anchor_pose,
                     **stage_config,
                 )
 
@@ -168,6 +170,7 @@ class SMPLifyX(SMPLify):
                         keypoints2d_weight: float = None,
                         keypoints3d: torch.Tensor = None,
                         keypoints3d_conf: torch.Tensor = None,
+                        anchor_pose: torch.Tensor = None,
                         keypoints3d_weight: float = None,
                         shape_prior_weight: float = None,
                         joint_prior_weight: float = None,
@@ -262,6 +265,7 @@ class SMPLifyX(SMPLify):
                     keypoints3d=keypoints3d,
                     keypoints3d_conf=keypoints3d_conf,
                     keypoints3d_weight=keypoints3d_weight,
+                    anchor_pose=anchor_pose,
                     joint_prior_weight=joint_prior_weight,
                     shape_prior_weight=shape_prior_weight,
                     smooth_loss_weight=smooth_loss_weight,
@@ -279,7 +283,8 @@ class SMPLifyX(SMPLify):
                 loss_rel_change = self._compute_relative_change(
                     pre_loss, loss.item())
                 if loss_rel_change < ftol:
-                    # print(f'[ftol={ftol}] Early stop at {iter_idx} iter!')
+                    if self.verbose:
+                        print(f'[ftol={ftol}] Early stop at {iter_idx} iter!')
                     break
             pre_loss = loss.item()
 
@@ -301,6 +306,7 @@ class SMPLifyX(SMPLify):
         keypoints3d: torch.Tensor = None,
         keypoints3d_conf: torch.Tensor = None,
         keypoints3d_weight: float = None,
+        anchor_pose: torch.Tensor = None,
         shape_prior_weight: float = None,
         joint_prior_weight: float = None,
         smooth_loss_weight: float = None,
@@ -386,6 +392,7 @@ class SMPLifyX(SMPLify):
             keypoints3d=keypoints3d,
             keypoints3d_conf=keypoints3d_conf,
             keypoints3d_weight=keypoints3d_weight,
+            anchor_pose=anchor_pose,
             joint_prior_weight=joint_prior_weight,
             shape_prior_weight=shape_prior_weight,
             smooth_loss_weight=smooth_loss_weight,
@@ -395,6 +402,8 @@ class SMPLifyX(SMPLify):
             joint_weights=joint_weights,
             reduction_override=reduction_override,
             body_pose=body_pose,
+            left_hand_pose=left_hand_pose,
+            right_hand_pose=right_hand_pose,
             betas=betas)
         ret.update(loss_dict)
 
@@ -406,6 +415,174 @@ class SMPLifyX(SMPLify):
             ret['joints'] = model_joints
 
         return ret
+
+    def _compute_loss(self,
+                      model_joints: torch.Tensor,
+                      model_joint_conf: torch.Tensor,
+                      keypoints2d: torch.Tensor = None,
+                      keypoints2d_conf: torch.Tensor = None,
+                      keypoints2d_weight: float = None,
+                      keypoints3d: torch.Tensor = None,
+                      keypoints3d_conf: torch.Tensor = None,
+                      keypoints3d_weight: float = None,
+                      anchor_pose: torch.Tensor = None,
+                      shape_prior_weight: float = None,
+                      joint_prior_weight: float = None,
+                      smooth_loss_weight: float = None,
+                      pose_prior_weight: float = None,
+                      pose_reg_weight: float = None,
+                      limb_length_weight: float = None,
+                      joint_weights: dict = {},
+                      reduction_override: str = None,
+                      global_orient: torch.Tensor = None,
+                      body_pose: torch.Tensor = None,
+                      left_hand_pose: torch.Tensor = None,
+                      right_hand_pose: torch.Tensor = None,
+                      betas: torch.Tensor = None):
+        """Loss computation.
+
+        Notes:
+            B: batch size
+            K: number of keypoints
+            D: shape dimension
+
+        Args:
+            model_joints: 3D joints regressed from body model of shape (B, K)
+            model_joint_conf: 3D joint confidence of shape (B, K). It is
+                normally all 1, except for zero-pads due to convert_kps in
+                the SMPL wrapper.
+            keypoints2d: 2D keypoints of shape (B, K, 2)
+            keypoints2d_conf: 2D keypoint confidence of shape (B, K)
+            keypoints2d_weight: weight of 2D keypoint loss
+            keypoints3d: 3D keypoints of shape (B, K, 3).
+            keypoints3d_conf: 3D keypoint confidence of shape (B, K)
+            keypoints3d_weight: weight of 3D keypoint loss
+            shape_prior_weight: weight of shape prior loss
+            joint_prior_weight: weight of joint prior loss
+            smooth_loss_weight: weight of smooth loss
+            pose_prior_weight: weight of pose prior loss
+            joint_weights: per joint weight of shape (K, )
+            reduction_override: reduction method, e.g., 'none', 'sum', 'mean'
+            body_pose: shape (B, 69), for loss computation
+            betas: shape (B, D), for loss computation
+
+        Returns:
+            losses: a dict that contains all losses
+        """
+        losses = {}
+        weight = self._get_weight(**joint_weights)
+        # 2D keypoint loss
+        if keypoints2d is not None and not self._skip_loss(
+                self.keypoints2d_mse_loss, keypoints2d_weight):
+            # bs = model_joints.shape[0]
+            # projected_joints = perspective_projection(
+            #     model_joints,
+            #     torch.eye(3).expand((bs, 3, 3)).to(model_joints.device),
+            #     torch.zeros((bs, 3)).to(model_joints.device), 5000.0,
+            #     torch.Tensor([self.img_res / 2,
+            #                   self.img_res / 2]).to(model_joints.device))
+            projected_joints_xyd = self.camera.transform_points_screen(
+                model_joints)
+            projected_joints = projected_joints_xyd[..., :2]
+
+            # normalize keypoints to [-1,1]
+            projected_joints = 2 * projected_joints / (self.img_res - 1) - 1
+            keypoints2d = 2 * keypoints2d / (self.img_res - 1) - 1
+            keypoint2d_loss = self.keypoints2d_mse_loss(
+                pred=projected_joints,
+                pred_conf=model_joint_conf,
+                target=keypoints2d,
+                target_conf=keypoints2d_conf,
+                keypoint_weight=weight,
+                loss_weight_override=keypoints2d_weight,
+                reduction_override=reduction_override)
+            losses['keypoint2d_loss'] = keypoint2d_loss
+        # 3D keypoint loss
+        if keypoints3d is not None and not self._skip_loss(
+                self.keypoints3d_mse_loss, keypoints3d_weight):
+            keypoints3d_loss = self.keypoints3d_mse_loss(
+                pred=model_joints,
+                pred_conf=model_joint_conf,
+                target=keypoints3d,
+                target_conf=keypoints3d_conf,
+                keypoint_weight=weight,
+                loss_weight_override=keypoints3d_weight,
+                reduction_override=reduction_override)
+            losses['keypoints3d_loss'] = keypoints3d_loss
+
+        # regularizer to prevent betas from taking large values
+        if not self._skip_loss(self.shape_prior_loss, shape_prior_weight):
+            shape_prior_loss = self.shape_prior_loss(
+                betas=betas,
+                loss_weight_override=shape_prior_weight,
+                reduction_override=reduction_override)
+            losses['shape_prior_loss'] = shape_prior_loss
+
+        # joint prior loss
+        if not self._skip_loss(self.joint_prior_loss, joint_prior_weight):
+            joint_prior_loss = self.joint_prior_loss(
+                body_pose=body_pose,
+                loss_weight_override=joint_prior_weight,
+                reduction_override=reduction_override)
+            losses['joint_prior_loss'] = joint_prior_loss
+
+        # smooth body loss
+        if not self._skip_loss(self.smooth_loss, smooth_loss_weight):
+            smooth_loss = self.smooth_loss(
+                body_pose=body_pose,
+                loss_weight_override=smooth_loss_weight,
+                reduction_override=reduction_override)
+            losses['smooth_loss'] = smooth_loss
+
+        # pose prior loss
+        if not self._skip_loss(self.pose_prior_loss, pose_prior_weight):
+            pose_prior_loss = self.pose_prior_loss(
+                body_pose=body_pose,
+                loss_weight_override=pose_prior_weight,
+                reduction_override=reduction_override)
+            losses['pose_prior_loss'] = pose_prior_loss
+
+        # pose reg loss
+        if not self._skip_loss(self.pose_reg_loss, pose_reg_weight):
+            pose_reg_loss = self.pose_reg_loss(
+                body_pose=body_pose,
+                loss_weight_override=pose_reg_weight,
+                reduction_override=reduction_override)
+            losses['pose_reg_loss'] = pose_reg_loss
+
+        # limb length loss
+        if not self._skip_loss(self.limb_length_loss, limb_length_weight):
+            limb_length_loss = self.limb_length_loss(
+                pred=model_joints,
+                pred_conf=model_joint_conf,
+                target=keypoints3d,
+                target_conf=keypoints3d_conf,
+                loss_weight_override=limb_length_weight,
+                reduction_override=reduction_override)
+            losses['limb_length_loss'] = limb_length_loss
+
+        if anchor_pose is not None:
+            losses['pose_anchor_loss'] = 0.0001 * torch.exp(torch.norm(body_pose - anchor_pose['body_pose'])) +  \
+                                         0.0003 * torch.exp(torch.norm(left_hand_pose - anchor_pose['left_hand_pose'].reshape(1, -1))) + \
+                                         0.0003 * torch.exp(torch.norm(right_hand_pose - anchor_pose['right_hand_pose'].reshape(1, -1)))
+
+        if self.verbose:
+            msg = ''
+            for loss_name, loss in losses.items():
+                msg += f'{loss_name}={loss.mean().item():.6f}, '
+            if self.verbose:
+                print(msg.strip(', '))
+
+        total_loss = 0
+        for loss_name, loss in losses.items():
+            if loss.ndim == 3:
+                total_loss = total_loss + loss.sum(dim=(2, 1))
+            elif loss.ndim == 2:
+                total_loss = total_loss + loss.sum(dim=-1)
+            else:
+                total_loss = total_loss + loss
+        losses['total_loss'] = total_loss
+        return losses
 
     def _set_keypoint_idxs(self):
         """Set keypoint indices to 1) body parts to be assigned different
