@@ -563,13 +563,10 @@ class SMPLifyX(SMPLify):
             losses['limb_length_loss'] = limb_length_loss
 
         if anchor_pose is not None:
-            # losses['pose_anchor_loss'] = 0.0001 * torch.exp(torch.norm(body_pose - anchor_pose['body_pose'])) +  \
-            #                              0.0003 * torch.exp(torch.norm(left_hand_pose - anchor_pose['left_hand_pose'].reshape(1, -1))) + \
-            #                              0.0003 * torch.exp(torch.norm(right_hand_pose - anchor_pose['right_hand_pose'].reshape(1, -1)))
-            # import pdb; pdb.set_trace()
-            losses['pose_anchor_loss'] = 0.001 * sum(map(gmof, body_pose.view(-1) - anchor_pose['body_pose'].view(-1))) +  \
-                                         0.0005 * sum(map(gmof, left_hand_pose.view(-1) - anchor_pose['left_hand_pose'].view(-1))) + \
-                                         0.0005 * sum(map(gmof, right_hand_pose.view(-1) - anchor_pose['right_hand_pose'].view(-1)))
+            weight = torch.tensor([[0.001]*63 + [0.0005]*45 + [0.0005]*45], device=self.device)
+            pre_pose = torch.cat((body_pose, left_hand_pose, right_hand_pose), dim=1)
+            anchor_pose = torch.cat((anchor_pose['body_pose'], anchor_pose['left_hand_pose'].view(-1, 45), anchor_pose['right_hand_pose'].view(-1, 45)), dim=1)
+            losses['pose_anchor_loss'] = torch.sum(weight * gmof(pre_pose - anchor_pose))
 
         if self.verbose:
             msg = ''
