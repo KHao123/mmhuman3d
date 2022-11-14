@@ -6,6 +6,7 @@ from mmhuman3d.core.conventions.keypoints_mapping import (
     get_keypoint_idxs_by_part,
 )
 from .smplify import OptimizableParameters, SMPLify
+from ..losses.mse_loss import gmof
 
 
 class SMPLifyX(SMPLify):
@@ -283,8 +284,8 @@ class SMPLifyX(SMPLify):
                 loss_rel_change = self._compute_relative_change(
                     pre_loss, loss.item())
                 if loss_rel_change < ftol:
-                    if self.verbose:
-                        print(f'[ftol={ftol}] Early stop at {iter_idx} iter!')
+                    # if self.verbose:
+                    print(f'[ftol={ftol}] Early stop at {iter_idx} iter!')
                     break
             pre_loss = loss.item()
 
@@ -562,9 +563,13 @@ class SMPLifyX(SMPLify):
             losses['limb_length_loss'] = limb_length_loss
 
         if anchor_pose is not None:
-            losses['pose_anchor_loss'] = 0.0001 * torch.exp(torch.norm(body_pose - anchor_pose['body_pose'])) +  \
-                                         0.0003 * torch.exp(torch.norm(left_hand_pose - anchor_pose['left_hand_pose'].reshape(1, -1))) + \
-                                         0.0003 * torch.exp(torch.norm(right_hand_pose - anchor_pose['right_hand_pose'].reshape(1, -1)))
+            # losses['pose_anchor_loss'] = 0.0001 * torch.exp(torch.norm(body_pose - anchor_pose['body_pose'])) +  \
+            #                              0.0003 * torch.exp(torch.norm(left_hand_pose - anchor_pose['left_hand_pose'].reshape(1, -1))) + \
+            #                              0.0003 * torch.exp(torch.norm(right_hand_pose - anchor_pose['right_hand_pose'].reshape(1, -1)))
+            # import pdb; pdb.set_trace()
+            losses['pose_anchor_loss'] = 0.001 * sum(map(gmof, body_pose.view(-1) - anchor_pose['body_pose'].view(-1))) +  \
+                                         0.0005 * sum(map(gmof, left_hand_pose.view(-1) - anchor_pose['left_hand_pose'].view(-1))) + \
+                                         0.0005 * sum(map(gmof, right_hand_pose.view(-1) - anchor_pose['right_hand_pose'].view(-1)))
 
         if self.verbose:
             msg = ''

@@ -5,11 +5,11 @@ import torch.nn.functional as F
 from .utils import weighted_loss
 
 
-def gmof(x, sigma):
+def gmof(x, sigma=1):
     """Geman-McClure error function."""
     x_squared = x**2
     sigma_squared = sigma**2
-    return (sigma_squared * x_squared) / (sigma_squared + x_squared)
+    return (2 * x_squared) / (sigma_squared + 4 * x_squared)
 
 
 @weighted_loss
