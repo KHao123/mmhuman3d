@@ -32,7 +32,6 @@ class SMPLifyX(SMPLify):
                  init_leye_pose: torch.Tensor = None,
                  init_reye_pose: torch.Tensor = None,
                  anchor_pose: torch.Tensor = None,
-                 anchor_weight: float = 0.01,
                  return_verts: bool = False,
                  return_joints: bool = False,
                  return_full_pose: bool = False,
@@ -130,7 +129,6 @@ class SMPLifyX(SMPLify):
                     keypoints3d=keypoints3d,
                     keypoints3d_conf=keypoints3d_conf,
                     anchor_pose=anchor_pose,
-                    anchor_weight=anchor_weight,
                     **stage_config,
                 )
 
