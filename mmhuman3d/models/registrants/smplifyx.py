@@ -32,6 +32,7 @@ class SMPLifyX(SMPLify):
                  init_leye_pose: torch.Tensor = None,
                  init_reye_pose: torch.Tensor = None,
                  anchor_pose: torch.Tensor = None,
+                 anchor_weight: float = 0.01,
                  return_verts: bool = False,
                  return_joints: bool = False,
                  return_full_pose: bool = False,
@@ -129,6 +130,7 @@ class SMPLifyX(SMPLify):
                     keypoints3d=keypoints3d,
                     keypoints3d_conf=keypoints3d_conf,
                     anchor_pose=anchor_pose,
+                    anchor_weight=anchor_weight,
                     **stage_config,
                 )
 
@@ -172,6 +174,7 @@ class SMPLifyX(SMPLify):
                         keypoints3d: torch.Tensor = None,
                         keypoints3d_conf: torch.Tensor = None,
                         anchor_pose: torch.Tensor = None,
+                        anchor_weight: float = 0.01,
                         keypoints3d_weight: float = None,
                         shape_prior_weight: float = None,
                         joint_prior_weight: float = None,
@@ -267,6 +270,7 @@ class SMPLifyX(SMPLify):
                     keypoints3d_conf=keypoints3d_conf,
                     keypoints3d_weight=keypoints3d_weight,
                     anchor_pose=anchor_pose,
+                    anchor_weight=anchor_weight,
                     joint_prior_weight=joint_prior_weight,
                     shape_prior_weight=shape_prior_weight,
                     smooth_loss_weight=smooth_loss_weight,
@@ -308,6 +312,7 @@ class SMPLifyX(SMPLify):
         keypoints3d_conf: torch.Tensor = None,
         keypoints3d_weight: float = None,
         anchor_pose: torch.Tensor = None,
+        anchor_weight: float = 0.01,
         shape_prior_weight: float = None,
         joint_prior_weight: float = None,
         smooth_loss_weight: float = None,
@@ -394,6 +399,7 @@ class SMPLifyX(SMPLify):
             keypoints3d_conf=keypoints3d_conf,
             keypoints3d_weight=keypoints3d_weight,
             anchor_pose=anchor_pose,
+            anchor_weight=anchor_weight,
             joint_prior_weight=joint_prior_weight,
             shape_prior_weight=shape_prior_weight,
             smooth_loss_weight=smooth_loss_weight,
@@ -427,6 +433,7 @@ class SMPLifyX(SMPLify):
                       keypoints3d_conf: torch.Tensor = None,
                       keypoints3d_weight: float = None,
                       anchor_pose: torch.Tensor = None,
+                      anchor_weight: float = 0.01,
                       shape_prior_weight: float = None,
                       joint_prior_weight: float = None,
                       smooth_loss_weight: float = None,
@@ -563,7 +570,7 @@ class SMPLifyX(SMPLify):
             losses['limb_length_loss'] = limb_length_loss
 
         if anchor_pose is not None:
-            weight = torch.tensor([[0.001]*63 + [0.0005]*45 + [0.0005]*45], device=self.device)
+            weight = anchor_weight * torch.tensor([[2]*63 + [2]*90], device=self.device)
             pre_pose = torch.cat((body_pose, left_hand_pose, right_hand_pose), dim=1)
             anchor_pose = torch.cat((anchor_pose['body_pose'], anchor_pose['left_hand_pose'].view(-1, 45), anchor_pose['right_hand_pose'].view(-1, 45)), dim=1)
             losses['pose_anchor_loss'] = torch.sum(weight * gmof(pre_pose - anchor_pose))
